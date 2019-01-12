@@ -7,7 +7,7 @@ public class WaterWake : MonoBehaviour
 {
 	private Mesh waterMesh;
 	private MeshFilter waterMeshFilter;
-	private float waterWidth = 3.0f;
+	private float waterWidth = 5.0f;
 	private float gridSpacing = 0.1f;
 
 	// Water Mesh
@@ -16,7 +16,7 @@ public class WaterWake : MonoBehaviour
 
 	// Used to calculate kernel lookup table
 	public float alpha = 0.9f;
-	private int P = 8;
+	private int P = 6;
 	private float g = -9.81f;
 	private float[,] storedKernelArray;
 
@@ -56,7 +56,7 @@ public class WaterWake : MonoBehaviour
 		boxCollider.center = new Vector3(this.waterWidth / 2.0f, 0.0f, this.waterWidth / 2.0f);
 		boxCollider.size = new Vector3(this.waterWidth, 0.1f, this.waterWidth);
 	
-		this.transform.position = new Vector3(-this.waterWidth / 2.0f, 0.0f, -this.waterWidth / 2.0f);
+		//this.transform.position = new Vector3(this.waterWidth / 2.0f, 0.0f, this.waterWidth / 2.0f);
 
 
 		this.storedKernelArray = new float[P * 2 + 1, P * 2 + 1];
@@ -64,16 +64,28 @@ public class WaterWake : MonoBehaviour
 		this.PrecomputeKernelValues();
 
 		//Need to clone these
-		this.previousHeight 		= height;
-		this.verticalDerivative 	= height;
-		this.source				= height;
-		this.obstruction 		= height;
-		this.heightDifference 	= height;
+		previousHeight 		= CloneList(height);
+		verticalDerivative 	= CloneList(height);
+		source				= CloneList(height);
+		obstruction 		= CloneList(height);
+		heightDifference 	= CloneList(height);
 
 		//Create this once here, so we dont need to create it each update
 		this.unfolded_verts = new Vector3[height.Length * height.Length];
 
 		this.arrayLength = this.height.Length;
+
+		//Add obstruction when the wave hits the walls
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				if (j == 0 || j == arrayLength - 1 || i == 0 || i == arrayLength - 1) {
+					obstruction[j][i].y = 0f;
+				}
+				else {
+					obstruction[j][i].y = 1f;
+				}
+			}
+		}
     }
 
     // Update is called once per frame
@@ -85,6 +97,7 @@ public class WaterWake : MonoBehaviour
 			MoveWater(0.02f);
 			updateTimer = 0f;
 		}
+		CreateWaterWakesWithMouse();
     }
 
     private List<Vector3[]> GenerateWaterVertices(){
@@ -123,41 +136,172 @@ public class WaterWake : MonoBehaviour
 
 			for(int x = 1; x < vertPerRow / 3; x++){
 
-				Debug.Log(x + (vertPerRow * z));
-				Debug.Log((x + 1)  + vertPerRow * z);
-				Debug.Log(x + (vertPerRow * (z + 1)));
+				//Debug.Log(x + (vertPerRow * z));
+				//Debug.Log((x + 1)  + vertPerRow * z);
+				//Debug.Log(x + (vertPerRow * (z + 1)));
+				//Debug.Log(x + (vertPerRow * (z + 1 )));
+				//Debug.Log((x + 1) + (vertPerRow * z));
+				//Debug.Log((x + 1) + (vertPerRow * (z + 1)));
+
+				//this.indicies.Add(x + (vertPerRow * (z + 1)));
+				//this.indicies.Add((x + 1)  + vertPerRow * z);
+				//this.indicies.Add(x + (vertPerRow * z));
+
+				//this.indicies.Add((x + 1) + (vertPerRow * (z + 1)));
+				//this.indicies.Add((x + 1) + (vertPerRow * z));
+				//this.indicies.Add(x + (vertPerRow * (z + 1 )));
 				
-				Debug.Log(x + (vertPerRow * (z + 1 )));
-				Debug.Log((x + 1) + (vertPerRow * z));
-				Debug.Log((x + 1) + (vertPerRow * (z + 1)));
 
-				this.indicies.Add(x + (vertPerRow * (z + 1)));
-				this.indicies.Add((x + 1)  + vertPerRow * z);
-				this.indicies.Add(x + (vertPerRow * z));
+				this.indicies.Add(x 		+ z * vertPerRow);
+				this.indicies.Add(x 		+ (z-1) * vertPerRow);
+				this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
 
-				this.indicies.Add((x + 1) + (vertPerRow * (z + 1)));
-				this.indicies.Add((x + 1) + (vertPerRow * z));
-				this.indicies.Add(x + (vertPerRow * (z + 1 )));
-				
-
-				//this.indicies.Add(x 		+ z * vertPerRow);
-				//this.indicies.Add(x 		+ (z-1) * vertPerRow);
-				//this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
-
-				//this.indicies.Add(x 		+ z * vertPerRow);
-				//this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
-				//this.indicies.Add((x-1)	+ z * vertPerRow);
+				this.indicies.Add(x 		+ z * vertPerRow);
+				this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
+				this.indicies.Add((x-1)	+ z * vertPerRow);
 
 			}
 		}
     }
 
+    //Clone an array and the inner array
+	Vector3[][] CloneList(Vector3[][] arrayToClone) {
+		//First clone the outer array
+		Vector3[][] newArray = arrayToClone.Clone() as Vector3[][];
+
+		//Then clone the inner arrays
+		for (int i = 0; i < newArray.Length; i++) {
+			newArray[i] = newArray[i].Clone() as Vector3[];
+		}
+		
+		return newArray;
+	}
+
     /**
     	iWave Algorithm
     **/
 
+    //Add water wakes to the water mesh
+	void MoveWater(float dt) {
+		//This will update height[j][i]
+		AddWaterWakes(dt);
 
+		//Update the mesh with the new heights
+		//Unfold the 2d array of verticies into a 1d array
+		for (int i = 0; i < arrayLength; i++) {
+			//Copies all the elements of the current array to the specified array
+			heightDifference[i].CopyTo(unfolded_verts, i * heightDifference.Length);
+		}
+		
+		//Add the new position of the water to the water mesh
+		waterMesh.vertices = unfolded_verts;
+		//Ensure the bounding volume is correct
+		waterMesh.RecalculateBounds();
+		//After modifying the vertices it is often useful to update the normals to reflect the change
+		waterMesh.RecalculateNormals();
+	}
 
+    //Add water wakes
+	void AddWaterWakes(float dt) {
+		//If strange gigantic waves happens, adjust alpha
+		
+		//Add sources and obstructions
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				//Add height from source
+				height[j][i].y += source[j][i].y;
+				
+				//Clear the source
+				source[j][i].y = 0f;
+				
+				//Add obstruction
+				height[j][i].y *= obstruction[j][i].y;
+			}
+		}
+		
+		
+		//Convolve to update verticalDerivative
+		Convolve();
+		
+		//Same for all
+		float twoMinusAlphaTimesDt = 2.0f - alpha * dt;
+		float onePlusAlphaTimesDt = 1.0f + alpha * dt;
+		float gravityTimesDtTimesDt = g * dt * dt;
+		
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				//Faster to do this once
+				float currentHeight = height[j][i].y;
+				
+				//Calculate the new height
+				float newHeight = 0.0f;
+				
+				newHeight += currentHeight * twoMinusAlphaTimesDt;
+				newHeight -= previousHeight[j][i].y; 
+				newHeight -= gravityTimesDtTimesDt * verticalDerivative[j][i].y;
+				newHeight /= onePlusAlphaTimesDt;
+				
+				//Save the old height
+				previousHeight[j][i].y = currentHeight;
+				
+				//Add the new height
+				height[j][i].y = newHeight;
+				
+				//Debug.Log(newHeight);
+				//If we have ambient waves we can add them here
+				//Just replace this with a call to a method where you find the current height of the ambient wave
+				//At the current coordinate
+				//float heightAmbientWave = 0.0f;
+				
+				heightDifference[j][i].y = newHeight;
+			}
+		}
+	}
+
+	//Convolve to update verticalDerivative
+	//This might seem unnecessary, but we will save one array if we are doing it before the main loop
+	void Convolve() {
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				float vDeriv = 0f;
+
+				//Will include when k, l = 0
+				for (int k = -P; k <= P; k++) {
+					for (int l = -P; l <= P; l++) {
+						//Get the precomputed values
+						//Need "+ P" because we iterate from -P and not 0, which is how they are stored in the array
+						float kernelValue = storedKernelArray[k + P, l + P];
+
+						//Make sure we are within the water
+						if (j+k >= 0 && j+k < arrayLength && i+l >= 0 && i+l < arrayLength) {
+							vDeriv += kernelValue * height[j+k][i+l].y;
+						}
+						//Outside
+						else {
+							//Right
+							if (j+k >= arrayLength && i+l >= 0 && i+l < arrayLength) {
+								vDeriv += kernelValue * height[2 * arrayLength - j - k - 1][i+l].y;
+							}
+							//Top
+							else if (i+l >= arrayLength && j+k >= 0 && j+k < arrayLength) {
+								vDeriv += kernelValue * height[j+k][2 * arrayLength - i - l - 1].y;
+							}
+							//Left
+							else if (j+k < 0 && i+l >= 0 && i+l < arrayLength) {
+								vDeriv += kernelValue * height[-j-k][i+l].y;
+							}
+							//Bottom
+							else if (i+l < 0 && j+k >= 0 && j+k < arrayLength) {
+								vDeriv += kernelValue * height[j+k][-i-l].y;
+							}
+						}
+					}
+				}
+
+				verticalDerivative[j][i].y = vDeriv;
+			}
+		}
+	}
 
     /**
 		reference: https://www.habrador.com/tutorials/water-wakes/2-water-wakes/
@@ -273,6 +417,35 @@ public class WaterWake : MonoBehaviour
 
 
 	**/
+//Interact with the water wakes by clicking with the mouse
+void CreateWaterWakesWithMouse() {
+	//Fire ray from the current mouse position
+	if (Input.GetKey(KeyCode.Mouse0)) {
+		RaycastHit hit;
+		if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hit)) {
+			
+			//Convert the mouse position from global to local
+			Vector3 localPos = transform.InverseTransformPoint(hit.point);
 
+			//Loop through all the vertices of the water mesh
+			for (int j = 0; j < arrayLength; j++) {
+				for (int i = 0; i < arrayLength; i++) {
+					//Find the closest vertice within a certain distance from the mouse
+					float sqrDistanceToVertice = (height[j][i] - localPos).sqrMagnitude;
+					
+					//If the vertice is within a certain range
+					float sqrDistance = 0.2f * 0.2f;
+					if (sqrDistanceToVertice < sqrDistance) {
+						//Get a smaller value the greater the distance is to make it look better
+						float distanceCompensator = 1 - (sqrDistanceToVertice / sqrDistance);
+						
+						//Add the force that now depends on how far the vertice is from the mouse
+						source[j][i].y += -0.02f * distanceCompensator;
+					}
+				}
+			}
+		}
+	}
+}
 }
 
