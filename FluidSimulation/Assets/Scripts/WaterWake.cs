@@ -7,7 +7,7 @@ public class WaterWake : MonoBehaviour
 {
 	private Mesh waterMesh;
 	private MeshFilter waterMeshFilter;
-	private float waterWidth = 5.0f;
+	private float waterWidth = 3.0f;
 	private float gridSpacing = 0.1f;
 
 	// Water Mesh
@@ -34,9 +34,15 @@ public class WaterWake : MonoBehaviour
 	int arrayLength;
 
 	float updateTimer = 0f;
+
+
+	//Audio
+	private AudioSource audioSource;
+	private AudioClip audioClip;
+
     // Start is called before the first frame update
     void Start()
-    {
+    {	
 		this.waterMeshFilter = this.GetComponent<MeshFilter>();
 
 		this.height = this.GenerateWaterVertices().ToArray();
@@ -86,6 +92,9 @@ public class WaterWake : MonoBehaviour
 				}
 			}
 		}
+
+		this.audioSource = this.GetComponent<AudioSource>();
+		this.audioClip = this.audioSource.clip;
     }
 
     // Update is called once per frame
@@ -97,7 +106,8 @@ public class WaterWake : MonoBehaviour
 			MoveWater(0.02f);
 			updateTimer = 0f;
 		}
-		CreateWaterWakesWithMouse();
+		//CreateWaterWakesWithMouse();
+		audioFrequency();
     }
 
     private List<Vector3[]> GenerateWaterVertices(){
@@ -132,9 +142,9 @@ public class WaterWake : MonoBehaviour
     private void GenerateWaterIndicies(){
     	int vertPerRow = (int)Mathf.Round(this.waterWidth / this.gridSpacing) + 1;
 
-    	for(int z = 1; z < vertPerRow / 3; z++){
+    	for(int z = 1; z < vertPerRow; z++){
 
-			for(int x = 1; x < vertPerRow / 3; x++){
+			for(int x = 1; x < vertPerRow; x++){
 
 				//Debug.Log(x + (vertPerRow * z));
 				//Debug.Log((x + 1)  + vertPerRow * z);
@@ -143,22 +153,22 @@ public class WaterWake : MonoBehaviour
 				//Debug.Log((x + 1) + (vertPerRow * z));
 				//Debug.Log((x + 1) + (vertPerRow * (z + 1)));
 
-				//this.indicies.Add(x + (vertPerRow * (z + 1)));
-				//this.indicies.Add((x + 1)  + vertPerRow * z);
-				//this.indicies.Add(x + (vertPerRow * z));
+				this.indicies.Add(x + (vertPerRow * (z - 1)));
+				this.indicies.Add((x - 1)  + vertPerRow * z);
+				this.indicies.Add(x + (vertPerRow * z));
 
-				//this.indicies.Add((x + 1) + (vertPerRow * (z + 1)));
-				//this.indicies.Add((x + 1) + (vertPerRow * z));
-				//this.indicies.Add(x + (vertPerRow * (z + 1 )));
+				this.indicies.Add((x - 1) + (vertPerRow * (z - 1)));
+				this.indicies.Add((x - 1) + (vertPerRow * z));
+				this.indicies.Add(x + (vertPerRow * (z - 1)));
 				
 
-				this.indicies.Add(x 		+ z * vertPerRow);
-				this.indicies.Add(x 		+ (z-1) * vertPerRow);
-				this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
+				//this.indicies.Add(x 		+ z * vertPerRow);
+				//this.indicies.Add(x 		+ (z-1) * vertPerRow);
+				//this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
 
-				this.indicies.Add(x 		+ z * vertPerRow);
-				this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
-				this.indicies.Add((x-1)	+ z * vertPerRow);
+				//this.indicies.Add(x 		+ z * vertPerRow);
+				//this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
+				//this.indicies.Add((x-1)	+ z * vertPerRow);
 
 			}
 		}
@@ -417,35 +427,68 @@ public class WaterWake : MonoBehaviour
 
 
 	**/
-//Interact with the water wakes by clicking with the mouse
-void CreateWaterWakesWithMouse() {
-	//Fire ray from the current mouse position
-	if (Input.GetKey(KeyCode.Mouse0)) {
-		RaycastHit hit;
-		if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hit)) {
-			
-			//Convert the mouse position from global to local
-			Vector3 localPos = transform.InverseTransformPoint(hit.point);
+	//Interact with the water wakes by clicking with the mouse
+	void CreateWaterWakesWithMouse() {
+		//Fire ray from the current mouse position
+		if (Input.GetKey(KeyCode.Mouse0)) {
+			RaycastHit hit;
+			if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out hit)) {
+				
+				//Convert the mouse position from global to local
+				Vector3 localPos = transform.InverseTransformPoint(hit.point);
 
-			//Loop through all the vertices of the water mesh
-			for (int j = 0; j < arrayLength; j++) {
-				for (int i = 0; i < arrayLength; i++) {
-					//Find the closest vertice within a certain distance from the mouse
-					float sqrDistanceToVertice = (height[j][i] - localPos).sqrMagnitude;
-					
-					//If the vertice is within a certain range
-					float sqrDistance = 0.2f * 0.2f;
-					if (sqrDistanceToVertice < sqrDistance) {
-						//Get a smaller value the greater the distance is to make it look better
-						float distanceCompensator = 1 - (sqrDistanceToVertice / sqrDistance);
+				//Loop through all the vertices of the water mesh
+				for (int j = 0; j < arrayLength; j++) {
+					for (int i = 0; i < arrayLength; i++) {
+						//Find the closest vertice within a certain distance from the mouse
+						float sqrDistanceToVertice = (height[j][i] - localPos).sqrMagnitude;
 						
-						//Add the force that now depends on how far the vertice is from the mouse
-						source[j][i].y += -0.02f * distanceCompensator;
+						//If the vertice is within a certain range
+						float sqrDistance = 0.2f * 0.2f;
+						if (sqrDistanceToVertice < sqrDistance) {
+							//Get a smaller value the greater the distance is to make it look better
+							float distanceCompensator = 1 - (sqrDistanceToVertice / sqrDistance);
+							
+							//Add the force that now depends on how far the vertice is from the mouse
+							source[j][i].y += -0.02f * distanceCompensator;
+						}
 					}
 				}
 			}
 		}
 	}
-}
+
+	void audioFrequency(){
+
+		float[] samples = new float[1024];
+        audioSource.GetOutputData(samples, 0);
+
+     	float clipLoudness = 0.0f;
+		foreach (var sample in samples) {
+			clipLoudness += Mathf.Abs(sample);
+		}
+		clipLoudness /= 1024.0f;
+
+		Vector3 temp = new Vector3(height[arrayLength/2][arrayLength/2].x, height[arrayLength/2][arrayLength/2].y - (clipLoudness * 10.0f), height[arrayLength/2][arrayLength/2].z);
+		//Debug.Log(clipLoudness * 10.0f);
+		
+		//Loop through all the vertices of the water mesh
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				//Find the closest vertice within a certain distance from the mouse
+				float sqrDistanceToVertice = temp.sqrMagnitude;
+				Debug.Log(sqrDistanceToVertice);
+				//If the vertice is within a certain range
+				float sqrDistance = 5.0f;
+				if (sqrDistanceToVertice > sqrDistance) {
+					//Get a smaller value the greater the distance is to make it look better
+					float distanceCompensator = 1 - (sqrDistanceToVertice / sqrDistance);
+					
+					//Add the force that now depends on how far the vertice is from the mouse
+					source[j][i].y += -0.02f * distanceCompensator;
+				}
+			}
+		}
+	}
 }
 
