@@ -437,12 +437,14 @@ public class WaterWake : MonoBehaviour
 				//Convert the mouse position from global to local
 				Vector3 localPos = transform.InverseTransformPoint(hit.point);
 
+				//Debug.Log("LocalPos:" + localPos);
 				//Loop through all the vertices of the water mesh
 				for (int j = 0; j < arrayLength; j++) {
 					for (int i = 0; i < arrayLength; i++) {
 						//Find the closest vertice within a certain distance from the mouse
 						float sqrDistanceToVertice = (height[j][i] - localPos).sqrMagnitude;
-						
+				//		Debug.Log("Height:" + (height[j][i] - localPos));
+
 						//If the vertice is within a certain range
 						float sqrDistance = 0.2f * 0.2f;
 						if (sqrDistanceToVertice < sqrDistance) {
@@ -451,6 +453,7 @@ public class WaterWake : MonoBehaviour
 							
 							//Add the force that now depends on how far the vertice is from the mouse
 							source[j][i].y += -0.02f * distanceCompensator;
+							Debug.Log("Source:" + source[j][i].y);
 						}
 					}
 				}
@@ -460,32 +463,33 @@ public class WaterWake : MonoBehaviour
 
 	void audioFrequency(){
 
-		float[] samples = new float[1024];
+		float[] samples = new float[2];
         audioSource.GetOutputData(samples, 0);
 
      	float clipLoudness = 0.0f;
-		foreach (var sample in samples) {
-			clipLoudness += Mathf.Abs(sample);
-		}
-		clipLoudness /= 1024.0f;
-
-		Vector3 temp = new Vector3(height[arrayLength/2][arrayLength/2].x, height[arrayLength/2][arrayLength/2].y - (clipLoudness * 10.0f), height[arrayLength/2][arrayLength/2].z);
-		//Debug.Log(clipLoudness * 10.0f);
+		//foreach (var sample in samples) {
+		clipLoudness += samples[0];
+		//}
+		//clipLoudness /= 1024.0f;
+		Debug.Log(clipLoudness);
+		Vector3 hitOnMiddle = new Vector3(1.5f, 0.0f, 1.5f);
+		//Vector3 temp = new Vector3(height[arrayLength/2][arrayLength/2].x - 1.5f, height[arrayLength/2][arrayLength/2].y - (clipLoudness * 20.0f), height[arrayLength/2][arrayLength/2].z - 1.5f);
 		
 		//Loop through all the vertices of the water mesh
 		for (int j = 0; j < arrayLength; j++) {
 			for (int i = 0; i < arrayLength; i++) {
+				//Debug.Log(forcetemp);
 				//Find the closest vertice within a certain distance from the mouse
-				float sqrDistanceToVertice = temp.sqrMagnitude;
-				Debug.Log(sqrDistanceToVertice);
+				float sqrDistanceToVertice = (height[j][i] - hitOnMiddle).sqrMagnitude;
+				//Debug.Log(sqrDistanceToVertice);
 				//If the vertice is within a certain range
-				float sqrDistance = 5.0f;
-				if (sqrDistanceToVertice > sqrDistance) {
+				float sqrDistance = 0.2f * 0.2f;
+				if (sqrDistanceToVertice < sqrDistance) {
 					//Get a smaller value the greater the distance is to make it look better
-					float distanceCompensator = 1 - (sqrDistanceToVertice / sqrDistance);
+					float distanceCompensator = (1 - (sqrDistanceToVertice / sqrDistance)) * 0.5f;
 					
 					//Add the force that now depends on how far the vertice is from the mouse
-					source[j][i].y += -0.02f * distanceCompensator;
+					source[j][i].y += clipLoudness * distanceCompensator;
 				}
 			}
 		}
