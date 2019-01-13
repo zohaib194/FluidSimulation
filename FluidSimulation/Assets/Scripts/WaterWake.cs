@@ -7,7 +7,7 @@ public class WaterWake : MonoBehaviour
 {
 	private Mesh waterMesh;
 	private MeshFilter waterMeshFilter;
-	private float waterWidth = 3.0f;
+	private float waterWidth = 5.0f;
 	private float gridSpacing = 0.1f;
 
 	// Water Mesh
@@ -34,11 +34,14 @@ public class WaterWake : MonoBehaviour
 	int arrayLength;
 
 	float updateTimer = 0f;
+	float waveTimer = 0f;
 
 
 	//Audio
 	private AudioSource audioSource;
 	private AudioClip audioClip;
+	private bool activeMiddleWave = true;
+	private bool mouseClickWave = false;
 
     // Start is called before the first frame update
     void Start()
@@ -62,7 +65,7 @@ public class WaterWake : MonoBehaviour
 		boxCollider.center = new Vector3(this.waterWidth / 2.0f, 0.0f, this.waterWidth / 2.0f);
 		boxCollider.size = new Vector3(this.waterWidth, 0.1f, this.waterWidth);
 	
-		//this.transform.position = new Vector3(this.waterWidth / 2.0f, 0.0f, this.waterWidth / 2.0f);
+		this.transform.position = new Vector3(-this.waterWidth / 2.0f, 0.0f, -this.waterWidth / 2.0f);
 
 
 		this.storedKernelArray = new float[P * 2 + 1, P * 2 + 1];
@@ -101,13 +104,27 @@ public class WaterWake : MonoBehaviour
     void Update()
     {
         updateTimer += Time.deltaTime;
+        waveTimer += Time.deltaTime;
 	
 		if (updateTimer > 0.02f) {
 			MoveWater(0.02f);
 			updateTimer = 0f;
 		}
-		//CreateWaterWakesWithMouse();
-		audioFrequency();
+		
+		if(Input.GetKey(KeyCode.A)){
+			this.activeMiddleWave = !this.activeMiddleWave;
+		} else if(Input.GetKey(KeyCode.B)){
+			this.mouseClickWave = !this.mouseClickWave;
+		}
+
+
+		if(this.activeMiddleWave && !this.mouseClickWave){
+			AudioWavesOnGrid();
+		} else if(!this.activeMiddleWave && !this.mouseClickWave){
+				AudioWavesDividedOnGrid();	
+		} else if(this.mouseClickWave){
+			CreateWaterWakesWithMouse();
+		}
     }
 
     private List<Vector3[]> GenerateWaterVertices(){
@@ -160,16 +177,7 @@ public class WaterWake : MonoBehaviour
 				this.indicies.Add((x - 1) + (vertPerRow * (z - 1)));
 				this.indicies.Add((x - 1) + (vertPerRow * z));
 				this.indicies.Add(x + (vertPerRow * (z - 1)));
-				
-
-				//this.indicies.Add(x 		+ z * vertPerRow);
-				//this.indicies.Add(x 		+ (z-1) * vertPerRow);
-				//this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
-
-				//this.indicies.Add(x 		+ z * vertPerRow);
-				//this.indicies.Add((x-1) 	+ (z-1) * vertPerRow);
-				//this.indicies.Add((x-1)	+ z * vertPerRow);
-
+		
 			}
 		}
     }
@@ -187,10 +195,86 @@ public class WaterWake : MonoBehaviour
 		return newArray;
 	}
 
+	private void AudioWavesOnGrid(){
+
+		float[] samples = new float[2];
+        audioSource.GetOutputData(samples, 0);
+
+     	float clipLoudness = 0.0f;
+		//foreach (var sample in samples) {
+		clipLoudness = samples[0];
+		//}
+		//clipLoudness /= 1024.0f;
+		//Debug.Log(clipLoudness);
+		Vector3 hitOnMiddle = new Vector3(this.waterWidth / 2.0f, 0.0f, this.waterWidth / 2.0f);
+		//Vector3 temp = new Vector3(height[arrayLength/2][arrayLength/2].x - 1.5f, height[arrayLength/2][arrayLength/2].y - (clipLoudness * 20.0f), height[arrayLength/2][arrayLength/2].z - 1.5f);
+		
+		//Loop through all the vertices of the water mesh
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				//Debug.Log(forcetemp);
+				//Find the closest vertice within a certain distance from the mouse
+				float sqrDistanceToVertice = (height[j][i] - hitOnMiddle).sqrMagnitude;
+				//Debug.Log(sqrDistanceToVertice);
+				//If the vertice is within a certain range
+				float sqrDistance = 0.2f * 0.2f;
+				if (sqrDistanceToVertice < sqrDistance) {
+					//Get a smaller value the greater the distance is to make it look better
+					float distanceCompensator = (1 - (sqrDistanceToVertice / sqrDistance)) * 0.2f;
+					
+					//Add the force that now depends on how far the vertice is from the mouse
+					source[j][i].y += (-0.2f * clipLoudness) * distanceCompensator;
+				}
+			}
+		}
+	}
+
+	private void AudioWavesDividedOnGrid(){
+
+		float[] samples = new float[2];
+        audioSource.GetOutputData(samples, 0);
+
+     	float clipLoudness = 0.0f;
+		//foreach (var sample in samples) {
+		clipLoudness = samples[0];
+		//}
+		//clipLoudness /= 1024.0f;
+		//Debug.Log(clipLoudness);
+		//Vector3 temp = new Vector3(height[arrayLength/2][arrayLength/2].x - 1.5f, height[arrayLength/2][arrayLength/2].y - (clipLoudness * 20.0f), height[arrayLength/2][arrayLength/2].z - 1.5f);
+		Vector3 hitOnMiddle;
+		//Loop through all the vertices of the water mesh
+		for (int j = 0; j < arrayLength; j++) {
+			for (int i = 0; i < arrayLength; i++) {
+				//Debug.Log(forcetemp);
+				//Find the closest vertice within a certain distance from the mouse
+				if(clipLoudness > 0.0f){
+					hitOnMiddle = new Vector3(Random.Range(-this.waterWidth / 2.0f, this.waterWidth), 0.0f, Random.Range(-this.waterWidth / 2.0f, this.waterWidth));
+					
+				} else {
+					hitOnMiddle = new Vector3(Random.Range(0.0f, -this.waterWidth / 2.0f), 0.0f, Random.Range(0.0f, -this.waterWidth / 2.0f));
+				}
+				
+				float sqrDistanceToVertice = (height[j][i] - hitOnMiddle).sqrMagnitude;
+				//Debug.Log(sqrDistanceToVertice);
+				//If the vertice is within a certain range
+				float sqrDistance = 0.2f * 0.2f;
+				if (sqrDistanceToVertice < sqrDistance) {
+					//Get a smaller value the greater the distance is to make it look better
+					float distanceCompensator = (1 - (sqrDistanceToVertice / sqrDistance)) * 0.2f;
+					
+					//Add the force that now depends on how far the vertice is from the mouse
+					source[j][i].y += /*(-0.2f * clipLoudness) * */distanceCompensator * ((clipLoudness >= 0.0f) ?  0.5f * clipLoudness : -0.5f * clipLoudness);
+				}
+			}
+		}
+	}
+
     /**
     	iWave Algorithm
     **/
-
+  	/**
+		reference: https://www.habrador.com/tutorials/water-wakes/2-water-wakes/
+    **/
     //Add water wakes to the water mesh
 	void MoveWater(float dt) {
 		//This will update height[j][i]
@@ -313,9 +397,7 @@ public class WaterWake : MonoBehaviour
 		}
 	}
 
-    /**
-		reference: https://www.habrador.com/tutorials/water-wakes/2-water-wakes/
-    **/
+  
     //Precompute the kernel values G(k,l)
 	void PrecomputeKernelValues() {
 		float G_zero = CalculateG_zero();
@@ -453,7 +535,7 @@ public class WaterWake : MonoBehaviour
 							
 							//Add the force that now depends on how far the vertice is from the mouse
 							source[j][i].y += -0.02f * distanceCompensator;
-							Debug.Log("Source:" + source[j][i].y);
+							//Debug.Log("Source:" + source[j][i].y);
 						}
 					}
 				}
@@ -461,38 +543,6 @@ public class WaterWake : MonoBehaviour
 		}
 	}
 
-	void audioFrequency(){
 
-		float[] samples = new float[2];
-        audioSource.GetOutputData(samples, 0);
-
-     	float clipLoudness = 0.0f;
-		//foreach (var sample in samples) {
-		clipLoudness += samples[0];
-		//}
-		//clipLoudness /= 1024.0f;
-		Debug.Log(clipLoudness);
-		Vector3 hitOnMiddle = new Vector3(1.5f, 0.0f, 1.5f);
-		//Vector3 temp = new Vector3(height[arrayLength/2][arrayLength/2].x - 1.5f, height[arrayLength/2][arrayLength/2].y - (clipLoudness * 20.0f), height[arrayLength/2][arrayLength/2].z - 1.5f);
-		
-		//Loop through all the vertices of the water mesh
-		for (int j = 0; j < arrayLength; j++) {
-			for (int i = 0; i < arrayLength; i++) {
-				//Debug.Log(forcetemp);
-				//Find the closest vertice within a certain distance from the mouse
-				float sqrDistanceToVertice = (height[j][i] - hitOnMiddle).sqrMagnitude;
-				//Debug.Log(sqrDistanceToVertice);
-				//If the vertice is within a certain range
-				float sqrDistance = 0.2f * 0.2f;
-				if (sqrDistanceToVertice < sqrDistance) {
-					//Get a smaller value the greater the distance is to make it look better
-					float distanceCompensator = (1 - (sqrDistanceToVertice / sqrDistance)) * 0.5f;
-					
-					//Add the force that now depends on how far the vertice is from the mouse
-					source[j][i].y += clipLoudness * distanceCompensator;
-				}
-			}
-		}
-	}
 }
 
